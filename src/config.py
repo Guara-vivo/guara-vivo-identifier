@@ -18,3 +18,14 @@ class ColorAnalyzerConfig:
     min_mask_coverage: float = 0.08
     mask_erosion_kernel_size: int = 3
     min_mask_pixels: int = 100
+
+
+@dataclass(frozen=True)
+class DistanceEstimatorConfig:
+    focal_length_px: float = 1200.0
+    adult_height_cm: float = 63.5
+    adult_wingspan_cm_min: float = 52.0
+    adult_wingspan_cm_max: float = 56.0
+    wingspan_aspect_ratio_threshold: float = 1.2
+    min_object_pixels: int = 20
+    min_relative_uncertainty: float = 0.2
