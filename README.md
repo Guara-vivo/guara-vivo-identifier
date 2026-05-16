@@ -34,16 +34,17 @@ O pipeline usa modo hibrido:
 5. Se a mascara nao existir ou tiver cobertura insuficiente, o sistema usa fallback para os pixels da bounding box.
 6. A cor e classificada entre vermelho (adulto) ou cinza (filhote).
 7. A classe GuaraIdentifierService monta a resposta final com:
-  - quantidade total de guaras
-   - resultado por guara (bbox, cor, fase de vida, distancia)
-  - origem da analise de cor (mask ou bbox fallback)
-  - acuracia por etapa (YOLO, classificacao de guara, cor/fase, distancia)
+
+- quantidade total de guaras
+- resultado por guara (bbox, cor, fase de vida, distancia)
+- origem da analise de cor (mask ou bbox fallback)
+- acuracia por etapa (YOLO, classificacao de guara, cor/fase, distancia)
 
 ## Estimativa de distancia
 
 A estimativa usa o modelo pinhole:
 
-- distancia = (focal_px * tamanho_real_cm) / tamanho_pixels
+- distancia = (focal_px \* tamanho_real_cm) / tamanho_pixels
 
 No projeto, os valores padrao sao:
 
@@ -68,43 +69,63 @@ Os pacotes estao em requirements.txt.
 
 ## Como executar
 
-No terminal, dentro da pasta do projeto:
+Suba a API no terminal, dentro da pasta do projeto:
 
 ```bash
-python main.py --image guara4.jpg
+uvicorn src.api:app --reload
 ```
+
+Se preferir, tambem funciona:
+
+```bash
+python main.py
+```
+
+## Rota de inferencia
+
+- `POST /guara-vermelho/inference`
+- Envio da imagem: `multipart/form-data` com o campo `image`
+
+Exemplo com `curl`:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/guara-vermelho/inference" \
+  -F "image=@guara4.jpg"
+```
+
+A resposta retorna o mesmo JSON que antes era impresso no terminal.
 
 ## Exemplo de saida
 
 ```json
 {
-  "imagem": "guara4.jpg",
-  "quantidade_guaras": 2,
-  "guaras": [
-    {
-      "id": 1,
-      "bbox_xyxy": [100, 60, 260, 310],
-      "cor": "vermelho",
-      "fase_vida": "adulto",
-      "fonte_analise_cor": "mask",
-      "cor_dominante_rgb": [214, 73, 58],
-      "distancia_estimada_m": 8.42,
-      "incerteza_distancia_m": 1.89,
-      "metodo_distancia": "height",
-      "fonte_pixels_distancia": "mask",
-      "medidas_pixels_objeto": {
-        "largura_px": 104,
-        "altura_px": 146
-      },
-      "acuracia": {
-        "deteccao_yolo": 0.9221,
-        "classificacao_guara": 0.9572,
-        "classificacao_cor": 0.8112,
-        "classificacao_fase_vida": 0.8112,
-        "estimativa_distancia": 0.79
-      }
-    }
-  ]
+	"imagem": "guara4.jpg",
+	"quantidade_guaras": 2,
+	"guaras": [
+		{
+			"id": 1,
+			"bbox_xyxy": [100, 60, 260, 310],
+			"cor": "vermelho",
+			"fase_vida": "adulto",
+			"fonte_analise_cor": "mask",
+			"cor_dominante_rgb": [214, 73, 58],
+			"distancia_estimada_m": 8.42,
+			"incerteza_distancia_m": 1.89,
+			"metodo_distancia": "height",
+			"fonte_pixels_distancia": "mask",
+			"medidas_pixels_objeto": {
+				"largura_px": 104,
+				"altura_px": 146
+			},
+			"acuracia": {
+				"deteccao_yolo": 0.9221,
+				"classificacao_guara": 0.9572,
+				"classificacao_cor": 0.8112,
+				"classificacao_fase_vida": 0.8112,
+				"estimativa_distancia": 0.79
+			}
+		}
+	]
 }
 ```
 
@@ -116,22 +137,28 @@ Se voce quiser mexer somente na parte de cor, a manutencao esta isolada em dois 
    - ColorAnalyzerConfig.kmeans_clusters
    - ColorAnalyzerConfig.resized_width
    - ColorAnalyzerConfig.resized_height
-  - ColorAnalyzerConfig.use_mask_for_color
-  - ColorAnalyzerConfig.min_mask_coverage
-  - ColorAnalyzerConfig.mask_erosion_kernel_size
-  - ColorAnalyzerConfig.min_mask_pixels
-  - DistanceEstimatorConfig.focal_length_px
-  - DistanceEstimatorConfig.adult_height_cm
-  - DistanceEstimatorConfig.adult_wingspan_cm_min
-  - DistanceEstimatorConfig.adult_wingspan_cm_max
-  - DistanceEstimatorConfig.wingspan_aspect_ratio_threshold
-  - DistanceEstimatorConfig.min_object_pixels
-  - DistanceEstimatorConfig.min_relative_uncertainty
+
+- ColorAnalyzerConfig.use_mask_for_color
+- ColorAnalyzerConfig.min_mask_coverage
+- ColorAnalyzerConfig.mask_erosion_kernel_size
+- ColorAnalyzerConfig.min_mask_pixels
+- DistanceEstimatorConfig.focal_length_px
+- DistanceEstimatorConfig.adult_height_cm
+- DistanceEstimatorConfig.adult_wingspan_cm_min
+- DistanceEstimatorConfig.adult_wingspan_cm_max
+- DistanceEstimatorConfig.wingspan_aspect_ratio_threshold
+- DistanceEstimatorConfig.min_object_pixels
+- DistanceEstimatorConfig.min_relative_uncertainty
+
 2. src/analyzers/color_analyzer.py:
-   - regra de classificacao no metodo _classify_color
-  - regras de fallback de mascara no metodo _extract_color_pixels
-  - referencias de vermelho e cinza
-  3. src/analyzers/distance_estimator.py:
+   - regra de classificacao no metodo \_classify_color
+
+- regras de fallback de mascara no metodo \_extract_color_pixels
+- referencias de vermelho e cinza
+
+3. src/analyzers/distance_estimator.py:
+
+
     - regra de escolha de metodo (height/wingspan)
     - regra de confianca e incerteza da distancia
 

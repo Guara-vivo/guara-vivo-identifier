@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 
 from src.analyzers.color_analyzer import GuaraColorAnalyzer
 from src.analyzers.distance_estimator import GuaraDistanceEstimator
@@ -28,6 +29,12 @@ class GuaraIdentifierService:
         image_bgr = cv2.imread(image_path)
         if image_bgr is None:
             raise FileNotFoundError(f"Nao foi possivel carregar a imagem: {image_path}")
+
+        return self.process_image_bgr(image_bgr, image_path)
+
+    def process_image_bgr(self, image_bgr: np.ndarray, image_source: str = "imagem_enviada") -> dict:
+        if image_bgr is None or image_bgr.size == 0:
+            raise ValueError("Nao foi possivel processar a imagem recebida")
 
         detections = self._detector.detect_birds(image_bgr)
         guara_results: list[GuaraIdentification] = []
@@ -61,7 +68,7 @@ class GuaraIdentifierService:
             )
 
         return {
-            "imagem": image_path,
+            "imagem": image_source,
             "quantidade_guaras": len(guara_results),
             "guaras": [self._serialize_result(item) for item in guara_results],
         }
