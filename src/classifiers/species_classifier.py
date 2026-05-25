@@ -16,12 +16,15 @@ class SpeciesClassifier:
     def guara_label(self) -> str:
         return "guara_vermelho"
 
-    def classify(self, crop_rgb: np.ndarray) -> SpeciesPrediction:
+    def _predict_probs(self, crop_rgb: np.ndarray) -> np.ndarray:
+        """Pré-processa imagem e retorna probabilidades preditas."""
         resized = cv2.resize(crop_rgb, (224, 224))
         model_input = np.expand_dims(resized, axis=0)
         model_input = preprocess_input(model_input)
+        return self._model.predict(model_input, verbose=0)[0]
 
-        predictions = self._model.predict(model_input, verbose=0)[0]
+    def classify(self, crop_rgb: np.ndarray) -> SpeciesPrediction:
+        predictions = self._predict_probs(crop_rgb)
         best_index = int(np.argmax(predictions))
 
         return SpeciesPrediction(
@@ -30,10 +33,6 @@ class SpeciesClassifier:
         )
 
     def guara_confidence(self, crop_rgb: np.ndarray) -> float:
-        resized = cv2.resize(crop_rgb, (224, 224))
-        model_input = np.expand_dims(resized, axis=0)
-        model_input = preprocess_input(model_input)
-
-        predictions = self._model.predict(model_input, verbose=0)[0]
+        predictions = self._predict_probs(crop_rgb)
         guara_index = self._labels.index(self.guara_label)
         return float(predictions[guara_index])

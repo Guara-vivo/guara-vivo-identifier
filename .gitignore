@@ -1,3 +1,65 @@
-\venv
-*.pyc
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+.env
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Model weights and cache
 *.pt
+*.pth
+*.h5
+*.pb
+*.onnx
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+
+# OS
+.DS_Store
+Thumbs.db
