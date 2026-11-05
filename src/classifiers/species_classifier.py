@@ -10,17 +10,26 @@ from src.types import SpeciesPrediction
 class SpeciesClassifier:
     def __init__(self, config: ModelConfig) -> None:
         self._labels = config.species_labels
-        self._model = tf.keras.models.load_model(config.species_model_path)
+        # O modelo possui camada Lambda 'mobilenet_preprocess' que referencia
+        # preprocess_input pelo nome; precisa estar em custom_objects.
+        self._model = tf.keras.models.load_model(
+            config.species_model_path,
+            compile=False,
+            custom_objects={"preprocess_input": preprocess_input},
+        )
 
     @property
     def guara_label(self) -> str:
         return "guara_vermelho"
 
     def _predict_probs(self, crop_rgb: np.ndarray) -> np.ndarray:
-        """Pré-processa imagem e retorna probabilidades preditas."""
+        """Redimensiona o recorte e retorna probabilidades preditas.
+
+        O pré-processamento do MobileNetV2 já é feito dentro do modelo
+        (camada 'mobilenet_preprocess'); a entrada é float32 em 0-255.
+        """
         resized = cv2.resize(crop_rgb, (224, 224))
-        model_input = np.expand_dims(resized, axis=0)
-        model_input = preprocess_input(model_input)
+        model_input = np.expand_dims(resized, axis=0).astype(np.float32)
         return self._model.predict(model_input, verbose=0)[0]
 
     def classify(self, crop_rgb: np.ndarray) -> SpeciesPrediction:
