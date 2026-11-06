@@ -9,6 +9,10 @@ from src.detectors.yolo_detector import YoloBirdDetector
 from src.types import GuaraIdentification
 
 
+WARNING_NO_BIRD = "nenhuma_ave_detectada"
+WARNING_NO_GUARA = "nenhum_guara_identificado"
+
+
 class GuaraIdentifierService:
     def __init__(
         self,
@@ -64,11 +68,28 @@ class GuaraIdentifierService:
                     species_confidence=species.confidence,
                     color_confidence=color.confidence,
                     dominant_rgb=color.dominant_rgb,
+                    warnings=color.warnings,
                 )
             )
 
+        image_warnings: list[str] = []
+        if not detections:
+            image_warnings.append(WARNING_NO_BIRD)
+        elif not guara_results:
+            image_warnings.append(WARNING_NO_GUARA)
+
+        guara_warnings = any(item.warnings for item in guara_results)
+        if image_warnings:
+            status = "sem_ave" if not detections else "sem_guara"
+        elif guara_warnings:
+            status = "atencao"
+        else:
+            status = "ok"
+
         return {
             "imagem": image_source,
+            "status_analise": status,
+            "avisos": image_warnings,
             "quantidade_guaras": len(guara_results),
             "guaras": [self._serialize_result(item) for item in guara_results],
         }
@@ -80,6 +101,8 @@ class GuaraIdentifierService:
             "bbox_xyxy": item.bbox_xyxy,
             "cor": item.color,
             "fase_vida": item.life_stage,
+            "status_analise": "atencao" if item.warnings else "ok",
+            "avisos": list(item.warnings),
             "fonte_analise_cor": item.color_source,
             "cor_dominante_rgb": item.dominant_rgb,
             "distancia_estimada_m": item.distance_m,

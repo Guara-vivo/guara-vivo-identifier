@@ -30,9 +30,9 @@ O pipeline usa modo hibrido:
 1. A classe YoloBirdDetector detecta objetos do tipo bird na imagem.
 2. Cada deteccao vira um recorte individual.
 3. A classe SpeciesClassifier classifica o recorte e filtra apenas guara_vermelho.
-4. A classe GuaraColorAnalyzer roda KMeans nos pixels da mascara (silhueta) quando possivel.
+4. A classe GuaraColorAnalyzer extrai os pixels da mascara (silhueta) quando possivel; o KMeans (semente fixa) fornece apenas a cor dominante informativa.
 5. Se a mascara nao existir ou tiver cobertura insuficiente, o sistema usa fallback para os pixels da bounding box.
-6. A cor e classificada entre vermelho (adulto) ou cinza (filhote).
+6. A fase de vida vem da saturacao HSV mediana (0-255) dos pixels da mascara: abaixo de `saturation_threshold` (110) = filhote, acima = adulto. Dentro de +-`saturation_uncertainty_margin` (20) do limiar, com menos de `min_pixels_analysis` (400) pixels de mascara ou sem mascara, a fase e `indefinido` e a resposta traz um aviso.
 7. A classe GuaraIdentifierService monta a resposta final com:
 
 - quantidade total de guaras
@@ -100,6 +100,8 @@ A resposta retorna o mesmo JSON que antes era impresso no terminal.
 ```json
 {
 	"imagem": "guara4.jpg",
+	"status_analise": "ok",
+	"avisos": [],
 	"quantidade_guaras": 2,
 	"guaras": [
 		{
@@ -107,6 +109,8 @@ A resposta retorna o mesmo JSON que antes era impresso no terminal.
 			"bbox_xyxy": [100, 60, 260, 310],
 			"cor": "vermelho",
 			"fase_vida": "adulto",
+			"status_analise": "ok",
+			"avisos": [],
 			"fonte_analise_cor": "mask",
 			"cor_dominante_rgb": [214, 73, 58],
 			"distancia_estimada_m": 8.42,
@@ -128,6 +132,15 @@ A resposta retorna o mesmo JSON que antes era impresso no terminal.
 	]
 }
 ```
+
+## Status e avisos da analise
+
+A API devolve codigos; o texto final para o usuario e responsabilidade do frontend.
+
+- `status_analise` (imagem): `ok`, `atencao` (algum guara com aviso), `sem_ave`, `sem_guara`.
+- `status_analise` (por guara): `ok` ou `atencao`.
+- `avisos` (imagem): `nenhuma_ave_detectada`, `nenhum_guara_identificado`.
+- `avisos` (por guara): `fase_vida_incerta`, `ave_muito_pequena`, `mascara_indisponivel`. Com qualquer um deles, `cor` e `fase_vida` ficam `indefinido`.
 
 ## Como ajustar apenas o KMeans
 
@@ -166,7 +179,8 @@ Assim, o restante do pipeline (YOLO + MobileNet + saida final) nao precisa ser a
 
 ## Observacoes
 
-- A acuracia da fase de vida usa a mesma confianca da classificacao de cor, porque fase de vida e derivada diretamente da cor.
+- A confianca da fase de vida e um escore heuristico (0,5 no limiar de saturacao, ate 1,0 a 60 de distancia), nao uma probabilidade. `classificacao_cor` e `classificacao_fase_vida` usam o mesmo valor.
+- Limiar e margem foram escolhidos no dataset interno (437 imagens, 49 filhotes); ha poucos filhotes e os rotulos nao revisados sao presumidos. Revalide com fotos de campo com filhotes.
 - Se o recorte for invalido, a classificacao pode retornar indefinido com confianca 0.0.
 - Para usar silhuetas, o modelo YOLO precisa fornecer masks. Se nao houver masks no resultado, o sistema continua funcionando com bbox (fallback).
 - Distancia com imagem unica e aproximada; para maior precisao, calibre a camera (focal em pixels) no ambiente real de captura.

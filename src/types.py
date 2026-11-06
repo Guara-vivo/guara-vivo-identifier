@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -24,6 +24,7 @@ class ColorPrediction:
     confidence: float
     dominant_rgb: list[int]
     color_source: str
+    warnings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -55,3 +56,4 @@ class GuaraIdentification:
     species_confidence: float
     color_confidence: float
     dominant_rgb: list[int]
+    warnings: list[str] = field(default_factory=list)

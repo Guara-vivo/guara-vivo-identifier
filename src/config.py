@@ -18,6 +18,14 @@ class ColorAnalyzerConfig:
     min_mask_coverage: float = 0.08
     mask_erosion_kernel_size: int = 3
     min_mask_pixels: int = 100
+    random_seed: int = 42
+    # Regra de fase de vida: saturacao HSV mediana (0-255) da mascara do YOLO.
+    # Abaixo do limiar = filhote (cinza/marrom); acima = adulto (vermelho/rosado).
+    saturation_threshold: float = 110.0
+    # Faixa +-margem ao redor do limiar: sem sinal claro, fase = "indefinido".
+    saturation_uncertainty_margin: float = 20.0
+    # Menos pixels de mascara que isso: ave muito pequena, fase = "indefinido".
+    min_pixels_analysis: int = 400
 
 
 @dataclass(frozen=True)
