@@ -6,15 +6,14 @@ from src.config import ColorAnalyzerConfig
 from src.types import ColorPrediction
 
 
+WARNING_UNCERTAIN_STAGE = "fase_vida_incerta"
+WARNING_SMALL_BIRD = "ave_muito_pequena"
+WARNING_NO_MASK = "mascara_indisponivel"
+
+
 class GuaraColorAnalyzer:
     def __init__(self, config: ColorAnalyzerConfig) -> None:
         self._config = config
-        self._red_references = [
-            np.array([255.0, 70.0, 60.0], dtype=np.float32),
-            np.array([220.0, 60.0, 50.0], dtype=np.float32),
-            np.array([180.0, 50.0, 45.0], dtype=np.float32),
-        ]
-        self._gray_reference = np.array([140.0, 140.0, 140.0], dtype=np.float32)
 
     def analyze(self, crop_rgb: np.ndarray, crop_mask: np.ndarray | None = None) -> ColorPrediction:
         if crop_rgb.size == 0:
@@ -24,6 +23,7 @@ class GuaraColorAnalyzer:
                 confidence=0.0,
                 dominant_rgb=[0, 0, 0],
                 color_source="bbox",
+                warnings=[WARNING_SMALL_BIRD],
             )
 
         pixels, color_source = self._extract_color_pixels(crop_rgb, crop_mask)
@@ -34,10 +34,27 @@ class GuaraColorAnalyzer:
                 confidence=0.0,
                 dominant_rgb=[0, 0, 0],
                 color_source=color_source,
+                warnings=[WARNING_SMALL_BIRD],
             )
 
-        dominant_rgb = self._dominant_color(pixels)
-        color_label, life_stage, confidence = self._classify_color(dominant_rgb)
+        rng = np.random.default_rng(self._config.random_seed)
+        sample = self._sample_pixels(pixels, rng)
+        dominant_rgb = self._dominant_color(sample)
+
+        warnings: list[str] = []
+        if color_source != "mask":
+            # Sem mascara confiavel o recorte inclui fundo e a saturacao nao representa a ave.
+            warnings.append(WARNING_NO_MASK)
+        if pixels.shape[0] < self._config.min_pixels_analysis:
+            warnings.append(WARNING_SMALL_BIRD)
+
+        median_saturation = self._median_saturation(sample)
+        color_label, life_stage, confidence, uncertain = self._classify_saturation(median_saturation)
+        if uncertain:
+            warnings.append(WARNING_UNCERTAIN_STAGE)
+
+        if WARNING_NO_MASK in warnings or WARNING_SMALL_BIRD in warnings or uncertain:
+            color_label, life_stage = "indefinido", "indefinido"
 
         return ColorPrediction(
             color_label=color_label,
@@ -45,6 +62,7 @@ class GuaraColorAnalyzer:
             confidence=confidence,
             dominant_rgb=dominant_rgb,
             color_source=color_source,
+            warnings=warnings,
         )
 
     def _extract_color_pixels(
@@ -84,21 +102,23 @@ class GuaraColorAnalyzer:
 
         return (mask > 0).astype(np.uint8)
 
+    def _sample_pixels(self, pixels: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        sample_size = self._config.resized_width * self._config.resized_height
+        if pixels.shape[0] > sample_size:
+            indices = rng.choice(pixels.shape[0], sample_size, replace=False)
+            return pixels[indices]
+        return pixels
+
     def _dominant_color(self, pixels: np.ndarray) -> list[int]:
         if pixels.shape[0] == 0:
             return [0, 0, 0]
-
-        if pixels.shape[0] > self._config.resized_width * self._config.resized_height:
-            sample_size = self._config.resized_width * self._config.resized_height
-            indices = np.random.choice(pixels.shape[0], sample_size, replace=False)
-            pixels = pixels[indices]
 
         n_clusters = min(self._config.kmeans_clusters, max(1, pixels.shape[0]))
 
         kmeans = KMeans(
             n_clusters=n_clusters,
             n_init=10,
-            random_state=42,
+            random_state=self._config.random_seed,
         )
         labels = kmeans.fit_predict(pixels)
 
@@ -109,23 +129,24 @@ class GuaraColorAnalyzer:
 
         return [int(center[0]), int(center[1]), int(center[2])]
 
-    def _classify_color(self, dominant_rgb: list[int]) -> tuple[str, str, float]:
-        pixel = np.array(dominant_rgb, dtype=np.float32)
+    @staticmethod
+    def _median_saturation(pixels: np.ndarray) -> float:
+        rgb = np.clip(pixels, 0, 255).astype(np.uint8).reshape(-1, 1, 3)
+        hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV).reshape(-1, 3)
+        return float(np.median(hsv[:, 1]))
 
-        max_distance = float(np.sqrt(3.0 * (255.0**2)))
-        red_distance = min(float(np.linalg.norm(pixel - ref)) for ref in self._red_references)
-        gray_distance = float(np.linalg.norm(pixel - self._gray_reference))
+    def _classify_saturation(self, median_saturation: float) -> tuple[str, str, float, bool]:
+        """Retorna (cor, fase, confianca, incerto).
 
-        red_score = max(0.0, 1.0 - (red_distance / max_distance))
-        gray_score = max(0.0, 1.0 - (gray_distance / max_distance))
+        Confianca e um escore heuristico (nao uma probabilidade): 0,5 no limiar e
+        cresce linearmente com a distancia a ele, saturando em 1,0 (a 60 de distancia).
+        """
+        threshold = self._config.saturation_threshold
+        margin = self._config.saturation_uncertainty_margin
+        distance = abs(median_saturation - threshold)
+        confidence = float(min(1.0, 0.5 + distance / 120.0))
+        uncertain = distance < margin
 
-        score_total = red_score + gray_score
-        if score_total <= 0.0:
-            return "indefinido", "indefinido", 0.0
-
-        if red_score >= gray_score:
-            confidence = red_score / score_total
-            return "vermelho", "adulto", float(confidence)
-
-        confidence = gray_score / score_total
-        return "cinza", "filhote", float(confidence)
+        if median_saturation < threshold:
+            return "cinza", "filhote", confidence, uncertain
+        return "vermelho", "adulto", confidence, uncertain
