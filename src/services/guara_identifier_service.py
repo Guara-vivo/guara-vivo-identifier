@@ -88,6 +88,9 @@ class GuaraIdentifierService:
 
         return {
             "imagem": image_source,
+            # Pixel space of every bbox_xyxy (the image the detector saw).
+            "image_width": int(image_bgr.shape[1]),
+            "image_height": int(image_bgr.shape[0]),
             "status_analise": status,
             "avisos": image_warnings,
             "quantidade_guaras": len(guara_results),
