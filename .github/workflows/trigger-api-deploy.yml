@@ -8,10 +8,37 @@ on:
     paths-ignore:
       - "**.md"
       - "docs/**"
+  pull_request:
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      # Mesma instalação do Dockerfile (torch só CPU), para pegar conflito de versões antes do deploy.
+      - name: Install dependencies
+        run: |
+          pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements.txt pytest
+          pip install --no-deps ultralytics==8.4.21
+      - name: Run tests
+        run: python -m pytest -q
+      # Audita o ambiente já instalado (pip-audit -r baixaria o torch com CUDA, vários GB).
+      # Aparece no run, mas nunca bloqueia o deploy, mesma regra da API.
+      - name: Audit dependencies
+        continue-on-error: true
+        run: pip install pip-audit && pip-audit
+
   trigger-deploy:
+    needs: test
+    # Em PR ou disparo manual noutra branch só rodam os testes.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
