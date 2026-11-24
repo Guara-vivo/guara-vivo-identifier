@@ -1,10 +1,10 @@
+import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from starlette.concurrency import run_in_threadpool
 
 from src.services.guara_identifier_service import GuaraIdentifierService
 
@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
 ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/jpg"}
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
-THREAD_POOL_WORKERS = 2  # Workers para inferência pesada
+# Máximo de inferências rodando ao mesmo tempo; as demais esperam na fila do executor.
+# Rodar mais em paralelo não acelera (a CPU é o gargalo) e cada inferência a mais
+# soma ~150 MiB de memória que o processo não devolve (teste de carga, documents#89).
+THREAD_POOL_WORKERS = 2
 
 
 def create_app() -> FastAPI:
@@ -52,10 +55,11 @@ def create_app() -> FastAPI:
         return filename, None
 
     async def _process_inference(image_bgr: np.ndarray, filename: str) -> dict:
-        """Executa inferência pesada em thread pool."""
+        """Executa inferência pesada no executor dedicado (no máximo THREAD_POOL_WORKERS de cada vez)."""
         try:
-            return await run_in_threadpool(
-                service.process_image_bgr, image_bgr, filename
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(
+                executor, service.process_image_bgr, image_bgr, filename
             )
         except ValueError as exc:
             logger.warning(f"Validação falhou: {exc}", exc_info=False)

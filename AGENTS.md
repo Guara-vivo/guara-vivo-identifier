@@ -22,7 +22,7 @@
 
 - ✅ **Validação MIME:** Apenas `image/jpeg`, `image/jpg`, `image/png` aceitos (HTTP 415)
 - ✅ **Limite de tamanho:** Máximo 10 MB por upload (HTTP 413 se excedido)
-- ✅ **Thread pool:** Inferência pesada (YOLO + MobileNet) roda em `run_in_threadpool` para não bloquear event loop
+- ✅ **Thread pool:** Inferência pesada (YOLO + MobileNet) roda no `ThreadPoolExecutor` dedicado (`THREAD_POOL_WORKERS = 2`) para não bloquear o event loop e limitar a memória
 - ✅ **Segurança de erro:** Exceções internas não são retornadas ao cliente (resposta genérica + log interno)
 - ✅ **Logging estruturado:** Erros capturam stack trace, avisos registram apenas mensagem
 
@@ -59,7 +59,7 @@ THREAD_POOL_WORKERS = 2  # Workers para inferência pesada
 - **Dependencies:** Pin versões em `requirements.txt`
 
 ### Performance
-- **Inferência pesada:** Deve rodas em thread pool (`run_in_threadpool`)
+- **Inferência pesada:** Deve rodar no `executor` de `src/api.py` (limite de `THREAD_POOL_WORKERS`), não em `run_in_threadpool`, que não tem esse limite
 - **Bloqueio:** Event loop nunca deve estar bloqueado por CV/ML
 - **Concorrência:** `THREAD_POOL_WORKERS=2` é padrão; ajuste conforme carga esperada
 
